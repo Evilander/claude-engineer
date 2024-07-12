@@ -12,6 +12,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.syntax import Syntax
 from rich.markdown import Markdown
+from claude_tester import claude_tester
 
 console = Console()
 
@@ -24,10 +25,10 @@ MAINMODEL = "claude-3-5-sonnet-20240620"
 TOOLCHECKERMODEL = "claude-3-5-sonnet-20240620"
 
 # Initialize the Anthropic client
-client = Anthropic(api_key="YOUR KEY")
+client = Anthropic(api_key="")
 
 # Initialize the Tavily client
-tavily = TavilyClient(api_key="YOUR KEY")
+tavily = TavilyClient(api_key="")
 
 # Set up the conversation memory
 conversation_history = []
@@ -50,7 +51,7 @@ Available tools and their optimal use cases:
 
 1. create_folder: Create new directories in the project structure.
 2. create_file: Generate new files with specified content.
-3. edit_and_apply: Examine and modify existing files.FULLY.
+3. edit_and_apply: Examine and modify existing files.
 4. read_file: View the contents of existing files without making changes.
 5. list_files: Understand the current project structure or locate specific files.
 6. tavily_search: Obtain current information on technologies, libraries, or best practices.
@@ -59,6 +60,7 @@ Available tools and their optimal use cases:
 Tool Usage Guidelines:
 - Always use the most appropriate tool for the task at hand.
 - For file modifications, use edit_and_apply. Read the file first, then apply changes if needed.
+- When editing files, apply changes in chunks for large modifications.
 - After making changes, always review the diff output to ensure accuracy.
 - Proactively use tavily_search when you need up-to-date information or context.
 
@@ -75,8 +77,9 @@ Project Creation and Management:
 Code Editing Best Practices:
 1. Always read the file content before making changes.
 2. Analyze the code and determine necessary modifications.
-3. Pay close attention to existing code structure to avoid unintended alterations.
-4. Review changes thoroughly after each modification.
+3. Make changes incrementally, especially for large files.
+4. Pay close attention to existing code structure to avoid unintended alterations.
+5. Review changes thoroughly after each modification.
 
 Always strive for accuracy, clarity, and efficiency in your responses and actions. If uncertain, use the tavily_search tool or admit your limitations.
 """
@@ -288,7 +291,7 @@ tools = [
     },
     {
     "name": "edit_and_apply",
-    "description": "Apply changes to a file. Use this when you need to edit an existing file. YOU ALWAYS PROVIDE THE FULL FILE CONTENT WHEN EDITING. NO PARTIAL CONTENT OR COMMENTS. YOU MUST PROVIDE THE FULL FILE CONTENT.",
+    "description": "Apply changes to a file. Use this when you need to edit a file.",
     "input_schema": {
         "type": "object",
         "properties": {
@@ -328,10 +331,35 @@ tools = [
                     "type": "string",
                     "description": "The path of the folder to list (default: current directory)"
                 }
-            }
+            },
+{
+        "name": "claude_tester",
+        "description": "Set up a virtual environment, install dependencies, and run Python code for testing. Use this when you need to test or execute Python code with specific dependencies.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "venv_name": {
+                    "type": "string",
+                    "description": "Name for the virtual environment"
+                },
+                "dependencies": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "List of Python packages to install in the virtual environment"
+                },
+                "code": {
+                    "type": "string",
+                    "description": "Python code to execute in the virtual environment"
+                },
+                "python_version": {
+                    "type": "string",
+                    "description": "Python version to use (default: 3.8)"
+                }
+            },
+            "required": ["venv_name", "dependencies", "code"]
         }
     },
-    {
+{
         "name": "tavily_search",
         "description": "Perform a web search using Tavily API to get up-to-date information or additional context. Use this when you need current information or feel a search could provide a better answer.",
         "input_schema": {
@@ -362,6 +390,13 @@ def execute_tool(tool_name, tool_input):
             return list_files(tool_input.get("path", "."))
         elif tool_name == "tavily_search":
             return tavily_search(tool_input["query"])
+        elif tool_name == "claude_tester":
+            return claude_tester(
+                tool_input["venv_name"],
+                tool_input["dependencies"],z
+                tool_input["code"],
+                tool_input.get("python_version", "3.8")
+            )
         else:
             return f"Unknown tool: {tool_name}"
     except KeyError as e:
